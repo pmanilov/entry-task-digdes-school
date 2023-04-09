@@ -10,8 +10,8 @@ public class JavaSchoolStarter {
         table = new Table();
     }
 
-    public List<Map<String,Object>> execute(String request) throws Exception {
-        return new ArrayList<>();
+    public List<Map<String,Object>> execute(String request) throws RequestException {
+        return table.executeRequest(request);
     }
 
 }

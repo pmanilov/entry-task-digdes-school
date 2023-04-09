@@ -9,7 +9,7 @@ public class Table {
     public Table() {
         db = new ArrayList<>();
     }
-    public List<Map<String,Object>> insert(String request) throws RuntimeException{
+    public List<Map<String,Object>> insert(String request) throws RequestException{
         String[] requestArray = request.split("\s*=\s*|\s*,\s*");
         Map<String,Object> map = new HashMap<>();
         for(int i = 0; i < requestArray.length; i+=2){
@@ -44,10 +44,10 @@ public class Table {
                         map.put(requestArray[i], null);
                     }
                 } else {
-                    throw new RuntimeException();
+                    throw new RequestException("Unknown column");
                 }
             } else{
-                throw new RuntimeException();
+                throw new RuntimeException("Wrong syntax");
             }
         }
         db.add(map);
@@ -56,7 +56,7 @@ public class Table {
         return res;
     }
 
-    public List<Map<String,Object>> update(String request) throws RuntimeException{
+    public List<Map<String,Object>> update(String request) throws RequestException{
         String[] requestArrayWhere = request.split("\s+[Ww][Hh][Ee][Rr][Ee]\s+");
         String[] requestArrayColumns = requestArrayWhere[0].split("\s*=\s*|\s*,\s*");
         if(requestArrayWhere.length == 1){
@@ -93,10 +93,10 @@ public class Table {
                                 row.put(requestArrayColumns[i], null);
                             }
                         } else {
-                            throw new RuntimeException();
+                            throw new RequestException("Unknown column");
                         }
                     } else{
-                        throw new RuntimeException();
+                        throw new RuntimeException("Wrong syntax");
                     }
                 }
             }
@@ -137,17 +137,17 @@ public class Table {
                                 row.put(requestArrayColumns[i], null);
                             }
                         } else {
-                            throw new RuntimeException();
+                            throw new RequestException("Unknown column");
                         }
                     } else{
-                        throw new RuntimeException();
+                        throw new RuntimeException("Wrong syntax");
                     }
                 }
             }
             return whereList;
         }
     }
-    public List<Map<String,Object>> select(String request) throws RuntimeException {
+    public List<Map<String,Object>> select(String request) throws RequestException {
         String requestWhere = request.replaceAll("[Ww][Hh][Ee][Rr][Ee]\s+", "");
         /*String[] requestArrayColumns = requestArrayWhere[0].split("\s*,\s*");*/
         if(requestWhere.equals("")){
@@ -157,7 +157,7 @@ public class Table {
         }
     }
 
-    public List<Map<String,Object>> delete(String request) throws RuntimeException{
+    public List<Map<String,Object>> delete(String request) throws RequestException{
         String requestWhere = request.replaceAll("[Ww][Hh][Ee][Rr][Ee]\s+", "");
         if(requestWhere.equals("")){
             List<Map<String,Object>> res = new ArrayList<>(db);
@@ -171,7 +171,7 @@ public class Table {
             return res;
         }
     }
-    public List<Map<String,Object>> executeRequest(String request) throws RuntimeException{
+    public List<Map<String,Object>> executeRequest(String request) throws RequestException{
         String regexInsert = "^\s*insert\s+values\s+.*$";
         String regexUpdate = "^\s*update\s+values\s+.*$";
         String regexDelete = "^\s*delete\s*.*$";
@@ -189,11 +189,11 @@ public class Table {
         } else  if(patternSelect.matcher(request.toLowerCase()).find()){
             return select(request.replaceFirst("\s*[Ss][Ee][Ll][Ee][Cc][Tt]\s*",""));
         } else {
-            throw new RuntimeException();
+            throw new RequestException("Wrong command");
         }
     }
 
-    public List<Map<String,Object>> convertSetExpression(String expAll) throws RuntimeException{
+    public List<Map<String,Object>> convertSetExpression(String expAll) throws RequestException{
         if(expAll == ""){
             return db;
         }
@@ -219,14 +219,18 @@ public class Table {
         return new ArrayList<>(res);
     }
 
-    public List<Map<String,Object>> convertSingleExpression(String exp) throws RuntimeException{
+    public List<Map<String,Object>> convertSingleExpression(String exp) throws RequestException{
         List<Map<String,Object>> res = new ArrayList<>();
-        String regexLike = "^\s*'lastname'\s+like\s+'.*'\s*$";
-        String regexILike = "^\s*'lastname'\s+ilike\s+'.*'\s*$";
+        String regexLike = "^\s*'lastname'\s+[Ll][Ii][Kk][Ee]\s+'.*'\s*$";
+        String regexILike = "^\s*'lastname'\s+[Ii][Ll][Ii][Kk][Ee]\s+'.*'\s*$";
         Pattern patternLike = Pattern.compile(regexLike);
         Pattern patternILike = Pattern.compile(regexILike);
         if (exp.contains(">=")) {
-            String col = exp.substring(0, exp.indexOf(">=")).replace("'", "").replace(" ","").toLowerCase();
+            String col = exp.substring(0, exp.indexOf(">=")+2).replaceFirst("\s*>=","").toLowerCase();
+            if(!(col.startsWith("'") && col.endsWith("'"))) {
+                throw new RequestException("Wrong syntax");
+            }
+            col = col.replace("'", "");
             String stringValue = exp.substring(exp.indexOf(">=")+2);
             int i = 0;
             while(stringValue.charAt(i) == ' '){
@@ -250,10 +254,16 @@ public class Table {
                 }
             }
             if(!(col.equals("cost") || col.equals("id") || col.equals("age"))){
-                throw new RuntimeException();
+                if(col.equals("lastname") || col.equals("active"))
+                    throw new RequestException("Type not supported");
+                throw new RequestException("Unknown column");
             }
         } else if (exp.contains("<=")) {
-            String col = exp.substring(0, exp.indexOf("<=")).replace("'", "").replace(" ","").toLowerCase();
+            String col = exp.substring(0, exp.indexOf("<=")+2).replaceFirst("\s*<=","").toLowerCase();
+            if(!(col.startsWith("'") && col.endsWith("'"))) {
+                throw new RequestException("Wrong syntax");
+            }
+            col = col.replace("'", "");
             String stringValue = exp.substring(exp.indexOf("<=")+2);
             int i = 0;
             while(stringValue.charAt(i) == ' '){
@@ -277,10 +287,16 @@ public class Table {
                 }
             }
             if(!(col.equals("cost") || col.equals("id") || col.equals("age"))){
-                throw new RuntimeException();
+                if(col.equals("lastname") || col.equals("active"))
+                    throw new RequestException("Type not supported");
+                throw new RequestException("Unknown column");
             }
         } else if (exp.contains("!=")) {
-            String col = exp.substring(0, exp.indexOf("!=")).replace("'", "").replace(" ","").toLowerCase();
+            String col = exp.substring(0, exp.indexOf("!=")+2).replaceFirst("\s*!=","").toLowerCase();
+            if(!(col.startsWith("'") && col.endsWith("'"))) {
+                throw new RequestException("Wrong syntax");
+            }
+            col = col.replace("'", "");
             String stringValue = exp.substring(exp.indexOf("!=")+2);
             int i = 0;
             while(stringValue.charAt(i) == ' '){
@@ -320,10 +336,14 @@ public class Table {
                 }
             }
             if(!(col.equals("active") || col.equals("cost") || col.equals("lastname") || col.equals("id") || col.equals("age"))){
-                throw new RuntimeException();
+                throw new RequestException("Unknown column");
             }
         }else if (exp.contains("=")) {
-            String col = exp.substring(0, exp.indexOf("=")).replace("'", "").replace(" ","").toLowerCase();
+            String col = exp.substring(0, exp.indexOf("=")+1).replaceFirst("\s*=","").toLowerCase();
+            if(!(col.startsWith("'") && col.endsWith("'"))) {
+                throw new RequestException("Wrong syntax");
+            }
+            col = col.replace("'", "");
             String stringValue = exp.substring(exp.indexOf("=")+1);
             int i = 0;
             while(stringValue.charAt(i) == ' '){
@@ -363,10 +383,14 @@ public class Table {
                 }
             }
             if(!(col.equals("active") || col.equals("cost") || col.equals("lastname") || col.equals("id") || col.equals("age"))){
-                throw new RuntimeException();
+                throw new RequestException("Unknown column");
             }
         }else if (exp.contains(">")) {
-            String col = exp.substring(0, exp.indexOf(">")).replace("'", "").replace(" ","").toLowerCase();
+            String col = exp.substring(0, exp.indexOf(">")+1).replaceFirst("\s*>","").toLowerCase();
+            if(!(col.startsWith("'") && col.endsWith("'"))) {
+                throw new RequestException("Wrong syntax");
+            }
+            col = col.replace("'", "");
             String stringValue = exp.substring(exp.indexOf("=")+1);
             int i = 0;
             while(stringValue.charAt(i) == ' '){
@@ -390,10 +414,16 @@ public class Table {
                 }
             }
             if(!(col.equals("cost") || col.equals("id") || col.equals("age"))){
-                throw new RuntimeException();
+                if(col.equals("lastname") || col.equals("active"))
+                    throw new RequestException("Type not supported");
+                throw new RequestException("Unknown column");
             }
         }else if (exp.contains("<")) {
-            String col = exp.substring(0, exp.indexOf("<")).replace("'", "").replace(" ","").toLowerCase();
+            String col = exp.substring(0, exp.indexOf("<")+1).replaceFirst("\s*<","").toLowerCase();
+            if(!(col.startsWith("'") && col.endsWith("'"))) {
+                throw new RequestException("Wrong syntax");
+            }
+            col = col.replace("'", "");
             String stringValue = exp.substring(exp.indexOf("<")+1);
             int i = 0;
             while(stringValue.charAt(i) == ' '){
@@ -417,11 +447,17 @@ public class Table {
                 }
             }
             if(!(col.equals("cost") || col.equals("id") || col.equals("age"))){
-                throw new RuntimeException();
+                if(col.equals("lastname") || col.equals("active"))
+                    throw new RequestException("Type not supported");
+                throw new RequestException("Unknown column");
             }
-        }else if (patternILike.matcher(exp.toLowerCase()).find()) {
-            String col = exp.substring(0, exp.indexOf("ilike")).replace("'", "").replace(" ", "").toLowerCase();
-            String stringValue = exp.substring(exp.indexOf("ilike")+5);
+        }else if (patternILike.matcher(exp).find()) {
+            String col = exp.substring(0, exp.toLowerCase().indexOf("ilike")+5).replaceFirst("\s*[Ii][Ll][Ii][Kk][Ee]", "").toLowerCase();
+            if(!(col.startsWith("'") && col.endsWith("'"))) {
+                throw new RequestException("Wrong syntax");
+            }
+            col = col.replace("'", "");
+            String stringValue = exp.substring(exp.toLowerCase().indexOf("ilike")+5);
             int i = 0;
             while(stringValue.charAt(i) == ' '){
                 i++;
@@ -440,11 +476,17 @@ public class Table {
                     }
                 }
             } else {
-                throw new RuntimeException();
+                if(col.equals("id") || col.equals("active") || col.equals("cost") || col.equals("age"))
+                    throw new RequestException("Type not supported");
+                throw new RequestException("Unknown column");
             }
-        } else if (patternLike.matcher(exp.toLowerCase()).find()) {
-            String col = exp.substring(0, exp.indexOf("like")).replace("'", "").replace(" ", "").toLowerCase();
-            String stringValue = exp.substring(exp.indexOf("like")+4);
+        } else if (patternLike.matcher(exp).find()) {
+            String col = exp.substring(0, exp.toLowerCase().indexOf("like")+4).replaceFirst("\s*[Ll][Ii][Kk][Ee]", "").toLowerCase();
+            if(!(col.startsWith("'") && col.endsWith("'"))) {
+                throw new RequestException("Wrong syntax");
+            }
+            col = col.replace("'", "");
+            String stringValue = exp.substring(exp.toLowerCase().indexOf("like")+4);
             int i = 0;
             while(stringValue.charAt(i) == ' '){
                 i++;
@@ -463,10 +505,12 @@ public class Table {
                     }
                 }
             } else {
-                throw new RuntimeException();
+                if(col.equals("id") || col.equals("active") || col.equals("cost") || col.equals("age"))
+                    throw new RequestException("Type not supported");
+                throw new RequestException("Unknown column");
             }
         } else {
-            throw new RuntimeException();
+            throw new RequestException("Unknown operation");
         }
         return res;
     }
